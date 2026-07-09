@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy Birthday Joy!</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #fdf5e0; /* cream */
+    font-family: "Comic Sans MS", "Comic Neue", cursive;
+  }
+  canvas {
+    display: block;
+    touch-action: none;
+    cursor: pointer;
+  }
+  .title {
+    position: fixed;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    text-align: center;
+    font-size: clamp(2.2rem, 9vw, 6rem);
+    font-weight: bold;
+    white-space: nowrap;
+    background: linear-gradient(90deg,
+      #ff4d4d, #ff9f1a, #ffd60a, #43d15f, #3aa0ff, #7a5cff, #ff4dd8, #ff4d4d);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: rainbow-slide 6s linear infinite, bounce 2.4s ease-in-out infinite;
+    pointer-events: none;
+    user-select: none;
+  }
+  @keyframes rainbow-slide {
+    to { background-position: -200% 0; }
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translate(-50%, -50%) rotate(-1.5deg); }
+    50%      { transform: translate(-50%, -52%) rotate(1.5deg); }
+  }
+  .hint {
+    position: fixed;
+    bottom: 8px;
+    left: 12px;
+    font-size: 14px;
+    color: #b09a6d;
+    pointer-events: none;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<h1 class="title">Happy Birthday Joy!</h1>
+<div class="hint">drag joy around &nbsp;&middot;&nbsp; click to drop cake 🍰</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H, FLOOR;
+function resize() {
+  W = canvas.width = innerWidth;
+  H = canvas.height = innerHeight;
+  FLOOR = H - 46; // feet baseline
+}
+addEventListener('resize', resize);
+resize();
+
+// ---- head image: tries head.png first, falls back to head.svg ----
+const headImg = new Image();
+headImg.onerror = () => { headImg.onerror = null; headImg.src = 'head.svg'; };
+headImg.src = '/assets/joy.png';
+
+// ---- figure proportions ----
+const S = 1.15;
+const LEG = 40 * S, TORSO = 46 * S, ARM = 32 * S, HEADR = 26 * S;
+const GRAVITY = 0.55;
+
+const fig = {
+  x: innerWidth / 2, y: FLOOR - LEG,
+  vx: 0, vy: 0,
+  dir: 1, phase: 0, tilt: 0,
+  moving: false,
+  state: 'walk',          // walk | held | air | eat
+  wanderX: null, wanderT: 0, pauseT: 0,
+  eating: null, eatT: 0,
+  say: null, sayT: 0
+};
+
+const BITES = 3;
+const cakes = [];
+const particles = [];
+let time = 0;
+
+const YUMS = ['yum!!', 'nom nom', 'thanks!!', 'more pls', 'best day ever!'];
+
+function spawnCake(p) {
+  if (cakes.length >= 12) return;
+  cakes.push({
+    x: Math.min(Math.max(p.x, 30), W - 30),
+    y: Math.min(p.y, FLOOR),
+    vy: 0, landed: false,
+    bites: BITES, seed: Math.random() * 10
+  });
+}
+
+function burst(x, y, colors, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 3.5;
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+      life: 40 + Math.random() * 25,
+      size: 2 + Math.random() * 3.5,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    });
+  }
+}
+
+const CRUMBS = ['#f9a8c9', '#fff0f5', '#e8b06a', '#ffd60a'];
+const CONFETTI = ['#ff4d4d', '#ff9f1a', '#ffd60a', '#43d15f', '#3aa0ff', '#7a5cff', '#ff4dd8'];
+
+// ---- dragging ----
+let dragging = false, grabOff = { x: 0, y: 0 }, lastP = null;
+
+function hitFigure(p) {
+  const top = fig.y - TORSO - HEADR * 2 - 12;
+  const bottom = fig.y + LEG + 12;
+  return Math.abs(p.x - fig.x) < 55 && p.y > top && p.y < bottom;
+}
+
+canvas.addEventListener('pointerdown', e => {
+  const p = { x: e.clientX, y: e.clientY };
+  if (hitFigure(p)) {
+    dragging = true;
+    fig.state = 'held';
+    fig.eating = null;
+    grabOff = { x: fig.x - p.x, y: fig.y - p.y };
+    fig.vx = 0; fig.vy = 0;
+    lastP = p;
+    canvas.setPointerCapture(e.pointerId);
+  } else {
+    spawnCake(p);
+  }
+});
+
+canvas.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const p = { x: e.clientX, y: e.clientY };
+  fig.vx = fig.vx * 0.6 + (p.x - lastP.x) * 0.4;
+  fig.vy = fig.vy * 0.6 + (p.y - lastP.y) * 0.4;
+  fig.x = p.x + grabOff.x;
+  fig.y = p.y + grabOff.y;
+  lastP = p;
+});
+
+function release() {
+  if (!dragging) return;
+  dragging = false;
+  fig.state = 'air';
+  fig.vx *= 1.1;
+  fig.vy *= 1.1;
+}
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+
+// ---- behaviour ----
+function nearestCake() {
+  let best = null, bd = Infinity;
+  for (const c of cakes) {
+    if (!c.landed) continue;
+    const d = Math.abs(c.x - fig.x);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+
+function updateFigure() {
+  if (fig.state === 'held') {
+    fig.tilt = Math.max(-0.5, Math.min(0.5, fig.vx * 0.05));
+    fig.phase += 0.35; // flailing legs
+    if (!dragging) fig.state = 'air';
+
+  } else if (fig.state === 'air') {
+    fig.vy += GRAVITY;
+    fig.x += fig.vx;
+    fig.y += fig.vy;
+    fig.tilt = Math.max(-0.7, Math.min(0.7, fig.tilt + fig.vx * 0.004));
+    fig.phase += 0.3;
+    // walls
+    if (fig.x < 35) { fig.x = 35; fig.vx *= -0.6; }
+    if (fig.x > W - 35) { fig.x = W - 35; fig.vx *= -0.6; }
+    if (fig.y < -HEADR * 3) { fig.y = -HEADR * 3; fig.vy = Math.abs(fig.vy) * 0.3; }
+    // floor
+    if (fig.y >= FLOOR - LEG) {
+      fig.y = FLOOR - LEG;
+      if (Math.abs(fig.vy) > 6) {
+        fig.vy *= -0.45;
+        fig.vx *= 0.7;
+        burst(fig.x, FLOOR, ['#e6d3a8'], 6); // dust poof
+      } else {
+        fig.vy = 0; fig.vx = 0;
+        fig.state = 'walk';
+      }
+    }
+
+  } else if (fig.state === 'eat') {
+    const c = fig.eating;
+    if (!c || !cakes.includes(c)) { fig.state = 'walk'; fig.eating = null; return; }
+    fig.tilt *= 0.8;
+    fig.phase += 0.2;
+    fig.dir = c.x >= fig.x ? 1 : -1;
+    fig.eatT++;
+    if (fig.eatT % 22 === 0) {
+      c.bites--;
+      burst(c.x, c.y - 18, CRUMBS, 8);
+      if (c.bites <= 0) {
+        cakes.splice(cakes.indexOf(c), 1);
+        burst(c.x, c.y - 15, CONFETTI, 18);
+        fig.say = YUMS[Math.floor(Math.random() * YUMS.length)];
+        fig.sayT = 90;
+        fig.state = 'walk';
+        fig.eating = null;
+      }
+    }
+
+  } else { // walk
+    fig.tilt *= 0.85;
+    fig.y = FLOOR - LEG;
+    const cake = nearestCake();
+    let tx = null;
+    if (cake) {
+      tx = cake.x - fig.dir * 24; // stand beside the cake
+      if (Math.abs(cake.x - fig.x) < 34) {
+        fig.state = 'eat';
+        fig.eating = cake;
+        fig.eatT = 0;
+        fig.moving = false;
+        return;
+      }
+      tx = cake.x;
+    } else {
+      if (fig.pauseT > 0) { fig.pauseT--; fig.moving = false; fig.phase += 0.04; return; }
+      if (fig.wanderX === null || fig.wanderT <= 0) {
+        fig.wanderX = 60 + Math.random() * (W - 120);
+        fig.wanderT = 400 + Math.random() * 400;
+      }
+      fig.wanderT--;
+      tx = fig.wanderX;
+    }
+    const dx = tx - fig.x;
+    if (Math.abs(dx) > 8) {
+      fig.dir = dx > 0 ? 1 : -1;
+      fig.x += fig.dir * (cake ? 2.2 : 1.5);
+      fig.moving = true;
+      fig.phase += cake ? 0.19 : 0.14;
+    } else {
+      fig.moving = false;
+      fig.phase += 0.04;
+      if (!cake) { fig.wanderX = null; fig.pauseT = 60 + Math.random() * 120; }
+    }
+  }
+
+  if (fig.sayT > 0) fig.sayT--;
+}
+
+// ---- drawing ----
+function drawGround() {
+  ctx.fillStyle = '#f1e2c3';
+  ctx.fillRect(0, FLOOR + 4, W, H - FLOOR);
+  ctx.strokeStyle = '#e3d0a8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, FLOOR + 4);
+  ctx.lineTo(W, FLOOR + 4);
+  ctx.stroke();
+}
+
+function drawCake(c) {
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  const k = 0.45 + 0.55 * (c.bites / BITES);
+  ctx.scale(k, k);
+  // plate
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 28, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // cake body
+  ctx.fillStyle = '#f28cb8';
+  ctx.beginPath();
+  ctx.roundRect(-21, -28, 42, 27, 5);
+  ctx.fill();
+  // icing drips
+  ctx.fillStyle = '#fff0f5';
+  ctx.beginPath();
+  ctx.roundRect(-21, -28, 42, 9, 4);
+  ctx.fill();
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.ellipse(i * 12, -19, 4.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // candle
+  ctx.fillStyle = '#7ec8ff';
+  ctx.fillRect(-2.5, -42, 5, 14);
+  // flame (flickers)
+  const fx = Math.sin(time * 0.25 + c.seed) * 1.5;
+  ctx.fillStyle = '#ff9f1a';
+  ctx.beginPath();
+  ctx.ellipse(fx * 0.5, -47 + fx * 0.4, 3.5, 6, fx * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffd60a';
+  ctx.beginPath();
+  ctx.ellipse(fx * 0.5, -46 + fx * 0.4, 1.8, 3.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawFigure() {
+  // shadow
+  const airH = Math.max(0, (FLOOR - LEG) - fig.y);
+  const sh = Math.max(0.25, 1 - airH / 400);
+  ctx.fillStyle = 'rgba(120,100,60,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(fig.x, FLOOR + 6, 42 * sh, 8 * sh, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(fig.x, fig.y); // origin = hip
+  ctx.rotate(fig.tilt);
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 5.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const grounded = fig.state === 'walk' || fig.state === 'eat';
+  let lFoot, rFoot, lHand, rHand;
+
+  if (grounded) {
+    const stride = fig.moving ? 15 : 3;
+    const s = Math.sin(fig.phase);
+    lFoot = { x: s * stride, y: LEG - (fig.moving ? Math.max(0, s) * 7 : 0) };
+    rFoot = { x: -s * stride, y: LEG - (fig.moving ? Math.max(0, -s) * 7 : 0) };
+    if (fig.state === 'eat') {
+      // both hands reach toward the cake
+      const munch = Math.sin(fig.eatT * 0.35) * 6;
+      lHand = { x: fig.dir * (ARM * 0.8), y: -TORSO + ARM * 0.7 + munch };
+      rHand = { x: fig.dir * (ARM * 0.7), y: -TORSO + ARM * 0.8 - munch };
+    } else {
+      lHand = { x: -s * stride * 0.9, y: -TORSO + ARM };
+      rHand = { x: s * stride * 0.9, y: -TORSO + ARM };
+    }
+  } else {
+    // dangling / flailing
+    const w1 = Math.sin(fig.phase), w2 = Math.sin(fig.phase + 1.4);
+    lFoot = { x: w1 * 10, y: LEG - 4 };
+    rFoot = { x: w2 * 10, y: LEG - 4 };
+    lHand = { x: -ARM * 0.6 + w2 * 8, y: -TORSO - ARM * 0.55 }; // arms up, waving
+    rHand = { x: ARM * 0.6 + w1 * 8, y: -TORSO - ARM * 0.55 };
+  }
+
+  // legs
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(lFoot.x, lFoot.y);
+  ctx.moveTo(0, 0); ctx.lineTo(rFoot.x, rFoot.y);
+  // torso
+  ctx.moveTo(0, 0); ctx.lineTo(0, -TORSO);
+  // arms
+  ctx.moveTo(0, -TORSO + 8); ctx.lineTo(lHand.x, lHand.y);
+  ctx.moveTo(0, -TORSO + 8); ctx.lineTo(rHand.x, rHand.y);
+  ctx.stroke();
+
+  // head (image, flips with walking direction)
+  const hy = -TORSO - HEADR - 2;
+  const wobble = grounded && fig.moving ? Math.sin(fig.phase * 2) * 0.05 : 0;
+  ctx.save();
+  ctx.translate(0, hy);
+  ctx.rotate(wobble);
+  ctx.scale(fig.dir, 1);
+  if (headImg.complete && headImg.naturalWidth > 0) {
+    const r = HEADR * 1.25;
+    ctx.drawImage(headImg, -r, -r, r * 2, r * 2);
+  } else {
+    // fallback if no image loads
+    ctx.fillStyle = '#ffe0b8';
+    ctx.beginPath();
+    ctx.arc(0, 0, HEADR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(-8, -5, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(8, -5, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 4, 10, 0.2, Math.PI - 0.2); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.restore();
+
+  // speech bubble
+  if (fig.say && fig.sayT > 0) {
+    const bx = fig.x, by = fig.y - TORSO - HEADR * 2.6 - 20;
+    const alpha = Math.min(1, fig.sayT / 20);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 17px "Comic Sans MS", cursive';
+    const tw = ctx.measureText(fig.say).width;
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(bx - tw / 2 - 12, by - 18, tw + 24, 32, 14);
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx - 6, by + 13); ctx.lineTo(bx + 6, by + 13); ctx.lineTo(bx, by + 24);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fig.say, bx, by - 1);
+    ctx.restore();
+  }
+}
+
+function updateCakes() {
+  for (const c of cakes) {
+    if (c.landed) continue;
+    c.vy += GRAVITY;
+    c.y += c.vy;
+    if (c.y >= FLOOR) {
+      c.y = FLOOR;
+      c.landed = true;
+      burst(c.x, c.y, ['#e6d3a8'], 4);
+    }
+  }
+}
+
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy += 0.12;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    if (p.y > FLOOR + 8) { p.y = FLOOR + 8; p.vy *= -0.4; }
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.globalAlpha = Math.min(1, p.life / 25);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function loop() {
+  time++;
+  ctx.clearRect(0, 0, W, H);
+  drawGround();
+  updateCakes();
+  updateFigure();
+  updateParticles();
+  for (const c of cakes) drawCake(c);
+  drawParticles();
+  drawFigure();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
