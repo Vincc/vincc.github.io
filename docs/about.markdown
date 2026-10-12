@@ -4,4 +4,4 @@ title: About
 permalink: /about/
 ---
 
-nuts
+hi im vincent
