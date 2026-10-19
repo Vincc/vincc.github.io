@@ -1,0 +1,113 @@
+---
+layout: base
+title: Album
+permalink: /album/
+wide: true
+---
+
+{%- assign video_exts = "mp4,webm,mov" | split: "," -%}
+
+<section class="album">
+  <h1>Album</h1>
+
+  {%- if site.data.album %}
+  <ul class="album-grid">
+    {%- for item in site.data.album %}
+    {%- assign src = "/assets/album/" | append: item.file | relative_url %}
+    {%- assign ext = item.file | split: "." | last | downcase %}
+    {%- assign label = item.description | default: item.file | escape %}
+    <li class="album-item">
+      <figure>
+        {%- if video_exts contains ext %}
+        <video controls playsinline preload="metadata" aria-label="{{ label }}"
+          {%- if item.poster %} poster="{{ "/assets/album/" | append: item.poster | relative_url }}"{% endif %}>
+          <source src="{{ src }}#t=0.1"{% if ext == "webm" %} type="video/webm"{% else %} type="video/mp4"{% endif %}>
+          <a href="{{ src }}">Download video</a>
+        </video>
+        {%- else %}
+        <a href="{{ src }}"><img src="{{ src }}" alt="{{ label }}" loading="lazy"></a>
+        {%- endif %}
+        {%- if item.description %}
+        <figcaption>{{ item.description | escape }}</figcaption>
+        {%- endif %}
+      </figure>
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- else %}
+  <p class="album-empty">Nothing here yet.</p>
+  {%- endif %}
+</section>
+
+<script>
+  // Justified rows: pack items left to right (keeping date order) into rows
+  // that exactly fill the width, choosing each row break so the row's height
+  // lands as close as possible to --row-height. The CSS flex rules are the
+  // fallback if this script doesn't run.
+  (function () {
+    var grid = document.querySelector(".album-grid");
+    if (!grid) return;
+    var items = Array.prototype.slice.call(grid.querySelectorAll(".album-item"));
+
+    function ratio(item) {
+      return parseFloat(item.style.getPropertyValue("--ar")) || 4 / 3;
+    }
+
+    function layout() {
+      var style = getComputedStyle(grid);
+      var width = grid.clientWidth;
+      var gap = parseFloat(style.columnGap) || 0;
+      var rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      var target = parseFloat(style.getPropertyValue("--row-height")) * rem;
+      if (!width || !target) return;
+
+      // Row height at which these items exactly span the width.
+      function heightOf(row) {
+        var sum = row.reduce(function (s, item) { return s + ratio(item); }, 0);
+        return (width - gap * (row.length - 1)) / sum;
+      }
+      function place(row, h) {
+        row.forEach(function (item) {
+          item.style.flex = "0 0 " + Math.floor(ratio(item) * h * 100) / 100 + "px";
+        });
+      }
+
+      var row = [];
+      items.forEach(function (item) {
+        var next = row.concat(item);
+        var hNext = heightOf(next);
+        if (hNext > target) { row = next; return; } // still too tall: keep adding
+        var hRow = row.length ? heightOf(row) : Infinity;
+        if (hRow / target < target / hNext) {
+          // Breaking before this item gets closer to the target height.
+          place(row, hRow);
+          row = [item];
+          if (heightOf(row) <= target) { place(row, heightOf(row)); row = []; }
+        } else {
+          place(next, hNext);
+          row = [];
+        }
+      });
+      // Last row: don't stretch it to fill the width.
+      if (row.length) place(row, Math.min(target, heightOf(row)));
+    }
+
+    // Record each item's real aspect ratio once its media knows its size.
+    items.forEach(function (item) {
+      var media = item.querySelector("img, video");
+      function apply() {
+        var w = media.naturalWidth || media.videoWidth;
+        var h = media.naturalHeight || media.videoHeight;
+        if (w && h) { item.style.setProperty("--ar", w / h); layout(); }
+      }
+      if (media.tagName === "IMG") {
+        media.complete ? apply() : media.addEventListener("load", apply);
+      } else {
+        media.readyState >= 1 ? apply() : media.addEventListener("loadedmetadata", apply);
+      }
+    });
+
+    layout();
+    if (window.ResizeObserver) new ResizeObserver(layout).observe(grid);
+  })();
+</script>

@@ -1,0 +1,176 @@
+/* ---------- Tokens ---------- */
+
+:root {
+  --bg: #ffffff;
+  --text: #1a1a1a;
+  --muted: #6b6b6b;
+  --link: #2a6bc2;
+  --border: #e5e5e5;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --measure: 40rem;
+  --measure-wide: 60rem;
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 0.15em;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+}
+
+/* ---------- Layout ---------- */
+
+.wrapper {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.wrapper--wide {
+  max-width: var(--measure-wide);
+}
+
+/* ---------- Nav ---------- */
+
+.site-nav {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1.25rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  color: var(--text);
+}
+
+/* ---------- Profile ---------- */
+
+.profile {
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.profile img {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile h1 {
+  margin: 1rem 0 0.5rem;
+}
+
+.profile p {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+}
+
+.profile .links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+}
+
+/* ---------- Album ---------- */
+
+.album {
+  padding: 2.5rem 0 4rem;
+}
+
+.album h1 {
+  margin: 0 0 2rem;
+  text-align: center;
+}
+
+/*
+ * Justified rows: every item in a row shares one height and keeps its own
+ * shape. Each item's width is proportional to its aspect ratio (--ar, set by
+ * the script on the album page once the media loads), so rows fill the full
+ * width while items stay in chronological order, left to right.
+ */
+.album-grid {
+  --row-height: 14rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Soaks up leftover space so the last row isn't stretched. */
+.album-grid::after {
+  content: "";
+  flex-grow: 1000000;
+}
+
+.album-item {
+  --ar: 1.333;
+  flex: calc(var(--ar) * 100) 1 calc(var(--ar) * var(--row-height));
+  min-width: 0;
+  max-width: 100%;
+}
+
+.album-item figure {
+  margin: 0;
+}
+
+.album-item img,
+.album-item video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: var(--ar);
+  object-fit: cover;
+  background: var(--border);
+}
+
+.album-item figcaption {
+  margin-top: 0.5rem;
+}
+
+.album-empty {
+  color: var(--muted);
+  text-align: center;
+}

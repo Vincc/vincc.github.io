@@ -5,8 +5,15 @@
 
   <body>
 
+    {%- unless page.hide_nav %}
+    <nav class="site-nav" aria-label="Main">
+      <a href="{{ "/" | relative_url }}"{% if page.url == "/" %} aria-current="page"{% endif %}>Home</a>
+      <a href="{{ "/album/" | relative_url }}"{% if page.url == "/album/" %} aria-current="page"{% endif %}>Album</a>
+    </nav>
+    {%- endunless %}
+
     <main class="page-content" aria-label="Content">
-      <div class="wrapper">
+      <div class="wrapper{% if page.wide %} wrapper--wide{% endif %}">
         {{ content }}
       </div>
     </main>

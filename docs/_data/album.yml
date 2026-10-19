@@ -1,0 +1,32 @@
+# Photos and videos shown on the Album page, in the order listed here
+# (the first entry appears first).
+#
+# To add one:
+#   1. Copy the file into docs/assets/album/
+#   2. Add an entry below, wherever you want it to appear:
+#
+#   - file: sunset.jpg           # file name inside docs/assets/album/
+#     description: Sunset over the harbour.
+#
+# Files ending in .mp4, .webm or .mov play as videos; anything else shows as an image.
+# MP4 plays in every browser. Keep each file under ~50 MB (GitHub rejects files
+# over 100 MB). Optionally add `poster: thumb.jpg` to choose the still shown
+# before a video plays.
+#
+# `description` is optional. Keep the two-space indent and the leading "- ".
+
+- file: coolreflection.jpeg
+  description: Cool reflection onto a building.
+
+- file: FoxGraffiti.jpeg
+  description: Fox in an alley looking back.
+
+- file: MelbToilet.jpeg
+  description: Alternate toilet dimension.
+
+- file: cloudhook.jpeg
+  description: Cloud that forms a hook.
+
+- file: shanghaiufo.jpeg
+  description: Cool saucer building.
+
